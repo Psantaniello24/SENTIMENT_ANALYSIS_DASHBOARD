@@ -3,31 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Sentiment Analysis Dashboard</title>
+    <title>Sentiment Analysis Dashboard</title>
     
-    <!-- Favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
-    <!-- Font Awesome for icons -->
+    <!-- Load only what we need -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <!-- Chart.js for data visualization -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Socket.io client -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
     <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
-    
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <!-- Header -->
     <header>
         <div class="container">
-            <h1><i class="fas fa-chart-line"></i> Real-time Sentiment Analysis Dashboard</h1>
+            <h1><i class="fas fa-chart-line"></i> Sentiment Analysis Dashboard</h1>
         </div>
     </header>
     
@@ -47,31 +36,28 @@
                 </div>
             </div>
             
-            <!-- Data Sources Section -->
-            <div class="dashboard-card" id="data-sources">
-                <h2><i class="fas fa-database"></i> Data Sources</h2>
-                <div class="chart-container">
-                    <canvas id="source-chart"></canvas>
-                </div>
-            </div>
-            
             <!-- Configuration Section -->
             <div class="dashboard-card" id="configuration">
                 <h2><i class="fas fa-cog"></i> Configuration</h2>
                 <form id="config-form">
                     <div class="form-group">
                         <label for="search-terms">Search Terms:</label>
-                        <input type="text" id="search-terms" name="search-terms" placeholder="Enter comma-separated terms...">
-                        <small>Separate multiple terms with commas</small>
+                        <input type="text" id="search-terms" name="search-terms" placeholder="Enter comma-separated terms">
                     </div>
                     <div class="form-group">
-                        <label for="max-items">Max Items to Process:</label>
-                        <input type="number" id="max-items" name="max-items" min="10" max="1000" step="10">
+                        <label for="max-items">Max Items:</label>
+                        <input type="number" id="max-items" name="max-items" min="10" max="100" step="10">
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Update Configuration
-                    </button>
+                    <button type="submit" class="btn">Update</button>
                 </form>
+            </div>
+            
+            <!-- Data Sources Section -->
+            <div class="dashboard-card" id="data-sources">
+                <h2><i class="fas fa-database"></i> Data Sources</h2>
+                <div class="chart-container">
+                    <canvas id="source-chart"></canvas>
+                </div>
             </div>
             
             <!-- Recent Items Section -->
@@ -90,50 +76,10 @@
     <footer>
         <div class="container">
             <p>&copy; 2023 Sentiment Analysis Dashboard</p>
-            <div class="footer-links">
-                <a href="#" onclick="showAboutDialog(); return false;">About</a>
-                <a href="https://github.com/yourusername/sentiment-dashboard" target="_blank">GitHub</a>
-            </div>
         </div>
     </footer>
     
-    <!-- About Dialog -->
-    <div class="modal" id="about-modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeAboutDialog()">&times;</span>
-            <h2>About This Dashboard</h2>
-            <p>This real-time sentiment analysis dashboard collects and analyzes social media content to determine public sentiment around specified topics.</p>
-            <p>The application uses:</p>
-            <ul>
-                <li>Flask and Socket.IO for real-time updates</li>
-                <li>Natural Language Processing for sentiment analysis</li>
-                <li>Twitter and Reddit APIs for data collection</li>
-                <li>Chart.js for data visualization</li>
-            </ul>
-            <p>Version: 1.0.0</p>
-        </div>
-    </div>
-    
     <!-- JavaScript -->
     <script src="{{ url_for('static', filename='app.js') }}"></script>
-    
-    <!-- Dialog Functions -->
-    <script>
-        function showAboutDialog() {
-            document.getElementById('about-modal').style.display = 'flex';
-        }
-        
-        function closeAboutDialog() {
-            document.getElementById('about-modal').style.display = 'none';
-        }
-        
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('about-modal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        }
-    </script>
 </body>
 </html> 

@@ -15,6 +15,33 @@ A real-time sentiment analysis dashboard that collects content from Reddit (and 
 - **Live Updates**: Uses WebSockets to provide real-time updates to the dashboard.
 - **Dynamic Search Terms**: Update search terms directly from the web interface without restarting.
 
+## Memory Optimization
+
+This application has built-in memory optimization features to run on platforms with memory constraints (like free tier hosting services):
+
+### Low Memory Mode
+
+Enable low memory mode by setting the environment variable:
+```
+LOW_MEMORY_MODE=true
+```
+
+When enabled, the application:
+- Uses a lightweight rule-based sentiment analyzer instead of BERT
+- Limits the number of items stored in memory
+- Processes fewer social media posts
+- Runs garbage collection more frequently
+- Limits max items configuration
+
+### Memory Issues?
+
+If you encounter memory-related crashes:
+
+1. Make sure `LOW_MEMORY_MODE=true` is set
+2. Comment out `transformers` and `torch` in requirements.txt
+3. Reduce `MAX_ITEMS` in your .env file to 30 or less
+4. Deploy with only 1 worker (`-w 1` in Procfile/render.yaml)
+
 ## Demo Mode
 
 The application includes a demonstration mode that generates sample data if API credentials are not provided. This allows you to test the functionality without setting up API access.

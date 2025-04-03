@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import gc
 from datetime import datetime, timedelta
 from flask import Flask, render_template
 from flask_socketio import SocketIO
@@ -8,6 +9,7 @@ from dotenv import load_dotenv
 import threading
 import time
 import logging
+import psutil
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +37,10 @@ initialization_error = None
 # Load environment variables
 load_dotenv()
 
+# Set memory mode from environment variable (default to low memory mode)
+low_memory_mode = os.environ.get('LOW_MEMORY_MODE', 'true').lower() == 'true'
+logger.info(f"Running in {'low' if low_memory_mode else 'standard'} memory mode")
+
 # Try importing components with error handling
 try:
     from sentiment_analyzer import SentimentAnalyzer
@@ -59,7 +65,7 @@ sentiment_data = {
 # Configuration storage
 config = {
     'search_terms': os.getenv('SEARCH_TERMS', 'python,data science,AI').split(','),
-    'max_items': int(os.getenv('MAX_ITEMS', '100'))
+    'max_items': int(os.getenv('MAX_ITEMS', '50'))  # Reduced default
 }
 
 # Lock for thread-safe access to config
@@ -73,7 +79,8 @@ try:
     if initialization_error is None:
         # Initialize analyzers and collectors
         logger.info("Loading sentiment analysis model...")
-        sentiment_analyzer = SentimentAnalyzer()
+        # Use basic sentiment analyzer in low memory mode
+        sentiment_analyzer = SentimentAnalyzer(use_transformers=not low_memory_mode)
         logger.info("Initializing Twitter collector...")
         twitter_collector = TwitterCollector()
         logger.info("Initializing Reddit collector...")
@@ -90,6 +97,22 @@ except Exception as e:
     logger.error(error_msg, exc_info=True)
     initialization_error = error_msg
     demo_mode = True
+
+# Memory monitoring function
+def log_memory_usage():
+    """Log current memory usage"""
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    mem_mb = mem_info.rss / 1024 / 1024  # Convert to MB
+    logger.info(f"Memory usage: {mem_mb:.2f} MB")
+    
+    # Force garbage collection if memory usage is high
+    if mem_mb > 400:  # Trigger cleanup before hitting 512MB limit
+        logger.warning(f"High memory usage detected ({mem_mb:.2f} MB). Running garbage collection...")
+        gc.collect()
+        # Log memory after collection
+        mem_after = process.memory_info().rss / 1024 / 1024
+        logger.info(f"Memory after garbage collection: {mem_after:.2f} MB (freed {mem_mb - mem_after:.2f} MB)")
 
 @app.route('/')
 def index():
@@ -148,7 +171,12 @@ def handle_update_config(data):
         
         # Update max items if provided
         if 'max_items' in data:
-            new_max = data['max_items']
+            new_max = int(data['max_items'])
+            # Enforce limits in low memory mode
+            if low_memory_mode and new_max > 100:
+                new_max = 100
+                logger.info(f"Limiting max items to 100 due to low memory mode")
+                
             if new_max != config['max_items']:
                 config['max_items'] = new_max
                 update_made = True
@@ -181,7 +209,7 @@ def reset_sentiment_data():
     }
     socketio.emit('update_data', sentiment_data)
 
-def generate_sample_data(count=10):
+def generate_sample_data(count=5):  # Reduced sample count
     """Generate sample data for demo mode"""
     sample_texts = [
         "I love this new product! It's amazing and works perfectly.",
@@ -228,8 +256,16 @@ def generate_sample_data(count=10):
 def analyze_content():
     global sentiment_data, config
     
+    # Store last collection time for memory monitoring
+    last_mem_check = time.time()
+    
     while True:
         try:
+            # Log memory usage periodically
+            if time.time() - last_mem_check > 60:  # Check every minute
+                log_memory_usage()
+                last_mem_check = time.time()
+            
             # Check if config needs to be refreshed
             if refresh_config.is_set():
                 logger.info("Refreshing configuration...")
@@ -247,7 +283,9 @@ def analyze_content():
             if demo_mode or initialization_error is not None:
                 # In demo mode, generate sample data
                 logger.info("Generating sample data...")
-                all_items = generate_sample_data(10)  # Generate 10 sample items
+                # Generate fewer samples in low memory mode
+                sample_count = 5 if low_memory_mode else 10
+                all_items = generate_sample_data(sample_count)
                 
                 for item in all_items:
                     if item['source'] == 'Twitter':
@@ -258,11 +296,14 @@ def analyze_content():
                     sentiment_data[item['sentiment']] += 1
             else:
                 # In normal mode, collect real data
+                # Limit items in low memory mode
+                actual_max = min(max_items, 50) if low_memory_mode else max_items
+                
                 # Collect tweets
-                tweets = twitter_collector.collect(search_terms, max_items // 2)
+                tweets = twitter_collector.collect(search_terms, actual_max // 2)
                 
                 # Collect Reddit posts
-                reddit_posts = reddit_collector.collect(search_terms, max_items // 2)
+                reddit_posts = reddit_collector.collect(search_terms, actual_max // 2)
                 
                 # Analyze tweets
                 for tweet in tweets:
@@ -290,13 +331,19 @@ def analyze_content():
                     sentiment_data['sources']['reddit'] += 1
                     sentiment_data[sentiment] += 1
             
+            # Limit the number of stored items in low memory mode
+            max_stored = 50 if low_memory_mode else 100
+            
             # Keep only the most recent items
-            sentiment_data['recent_items'] = (all_items + sentiment_data['recent_items'])[:100]
+            sentiment_data['recent_items'] = (all_items + sentiment_data['recent_items'])[:max_stored]
             
             # Emit the updated data
             socketio.emit('update_data', sentiment_data)
             
             logger.info(f"Analyzed {len(all_items)} new items. Total: positive={sentiment_data['positive']}, negative={sentiment_data['negative']}, neutral={sentiment_data['neutral']}")
+            
+            # Run garbage collection after processing
+            gc.collect()
             
             # Wait before the next collection
             sleep_time = 10 if demo_mode or initialization_error is not None else 60  # Faster updates in demo mode
@@ -324,10 +371,14 @@ if __name__ == '__main__':
             global sentiment_data
             while True:
                 # Generate some sample data periodically
-                all_items = generate_sample_data(5)
-                sentiment_data['recent_items'] = (all_items + sentiment_data['recent_items'])[:100]
+                all_items = generate_sample_data(3)  # Generate fewer items
+                # Limit stored items
+                max_stored = 50 if low_memory_mode else 100
+                sentiment_data['recent_items'] = (all_items + sentiment_data['recent_items'])[:max_stored]
                 socketio.emit('update_data', sentiment_data)
-                time.sleep(10)
+                # Run garbage collection
+                gc.collect()
+                time.sleep(15)  # Longer sleep time
                 
         thread = threading.Thread(target=minimal_data_thread, daemon=True)
         thread.start()

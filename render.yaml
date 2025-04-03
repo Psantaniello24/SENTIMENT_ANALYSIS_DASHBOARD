@@ -2,15 +2,16 @@ services:
   - type: web
     name: sentiment-analysis-dashboard
     env: python
-    buildCommand: pip install --upgrade pip && pip install -e .
+    buildCommand: pip install -r requirements.txt && python -c "import nltk; nltk.download('punkt')"
     startCommand: gunicorn --worker-class eventlet -w 1 app:app
+    plan: starter
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18
-      - key: DEBUG
-        value: false
-      - key: SECRET_KEY
-        generateValue: true
+        value: 3.9.13
+      - key: NLTK_DATA
+        value: /nltk_data
+      - key: LOW_MEMORY_MODE
+        value: true
       - key: SOCKETIO_ASYNC_MODE
         value: eventlet
     healthCheckPath: / 
