@@ -7,13 +7,26 @@ from flask_socketio import SocketIO
 from dotenv import load_dotenv
 import threading
 import time
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Add a startup message
-print("Initializing Sentiment Analysis Dashboard...")
-print("This may take a few minutes on first run while downloading models...")
+logger.info("Initializing Sentiment Analysis Dashboard...")
+logger.info("This may take a few minutes on first run while downloading models...")
 
-from sentiment_analyzer import SentimentAnalyzer
-from data_collector import TwitterCollector, RedditCollector
+# Try importing components with error handling
+try:
+    from sentiment_analyzer import SentimentAnalyzer
+    from data_collector import TwitterCollector, RedditCollector
+except ImportError as e:
+    logger.error(f"Error importing required modules: {e}")
+    raise
 
 # Load environment variables
 load_dotenv()
@@ -27,19 +40,19 @@ socketio = SocketIO(app,
                    async_mode=os.environ.get('SOCKETIO_ASYNC_MODE', 'eventlet'))
 
 # Initialize analyzers and collectors
-print("Loading sentiment analysis model...")
+logger.info("Loading sentiment analysis model...")
 sentiment_analyzer = SentimentAnalyzer()
-print("Initializing Twitter collector...")
+logger.info("Initializing Twitter collector...")
 twitter_collector = TwitterCollector()
-print("Initializing Reddit collector...")
+logger.info("Initializing Reddit collector...")
 reddit_collector = RedditCollector()
-print("Initialization complete!")
+logger.info("Initialization complete!")
 
 # Check if we are in demo mode (no API keys)
 demo_mode = twitter_collector.client is None and reddit_collector.client is None
 if demo_mode:
-    print("RUNNING IN DEMO MODE: No valid API keys found. Will generate sample data.")
-    print("To use real data, please add valid API keys to the .env file.")
+    logger.info("RUNNING IN DEMO MODE: No valid API keys found. Will generate sample data.")
+    logger.info("To use real data, please add valid API keys to the .env file.")
 
 # Global data storage
 sentiment_data = {
@@ -71,13 +84,13 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
+    logger.info('Client connected')
     # Send initial data to new clients
     socketio.emit('update_data', sentiment_data)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
+    logger.info('Client disconnected')
 
 @socketio.on('get_config')
 def handle_get_config():
@@ -93,7 +106,7 @@ def handle_update_config(data):
     """Handle updates to the configuration"""
     global config
     
-    print(f"Received config update: {data}")
+    logger.info(f"Received config update: {data}")
     update_made = False
     
     with config_lock:
@@ -104,7 +117,7 @@ def handle_update_config(data):
             if new_terms != config['search_terms']:
                 config['search_terms'] = new_terms
                 update_made = True
-                print(f"Updated search terms to: {config['search_terms']}")
+                logger.info(f"Updated search terms to: {config['search_terms']}")
         
         # Update max items if provided
         if 'max_items' in data:
@@ -112,7 +125,7 @@ def handle_update_config(data):
             if new_max != config['max_items']:
                 config['max_items'] = new_max
                 update_made = True
-                print(f"Updated max items to: {config['max_items']}")
+                logger.info(f"Updated max items to: {config['max_items']}")
     
     # If updates were made, signal analyzer thread to refresh
     if update_made:
@@ -182,7 +195,7 @@ def analyze_content():
         try:
             # Check if config needs to be refreshed
             if refresh_config.is_set():
-                print("Refreshing configuration...")
+                logger.info("Refreshing configuration...")
                 refresh_config.clear()
             
             # Get current config safely
@@ -190,13 +203,13 @@ def analyze_content():
                 search_terms = config['search_terms'].copy()
                 max_items = config['max_items']
             
-            print(f"Analyzing with terms: {search_terms}, max items: {max_items}")
+            logger.info(f"Analyzing with terms: {search_terms}, max items: {max_items}")
             
             all_items = []
             
             if demo_mode:
                 # In demo mode, generate sample data
-                print("Generating sample data...")
+                logger.info("Generating sample data...")
                 all_items = generate_sample_data(10)  # Generate 10 sample items
                 
                 for item in all_items:
@@ -246,17 +259,17 @@ def analyze_content():
             # Emit the updated data
             socketio.emit('update_data', sentiment_data)
             
-            print(f"Analyzed {len(all_items)} new items. Total: positive={sentiment_data['positive']}, negative={sentiment_data['negative']}, neutral={sentiment_data['neutral']}")
+            logger.info(f"Analyzed {len(all_items)} new items. Total: positive={sentiment_data['positive']}, negative={sentiment_data['negative']}, neutral={sentiment_data['neutral']}")
             
             # Wait before the next collection
             sleep_time = 10 if demo_mode else 60  # Faster updates in demo mode
-            print(f"Waiting {sleep_time} seconds for next update...")
+            logger.info(f"Waiting {sleep_time} seconds for next update...")
             
             # Wait with timeout to allow for interruption from config changes
             refresh_config.wait(timeout=sleep_time)
             
         except Exception as e:
-            print(f"Error in analysis loop: {e}")
+            logger.error(f"Error in analysis loop: {e}", exc_info=True)
             time.sleep(10)  # Wait a bit before retrying
 
 if __name__ == '__main__':
@@ -268,11 +281,11 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     
     # Start the Flask app
-    print(f"Starting web server on port {port}")
+    logger.info(f"Starting web server on port {port}")
     if demo_mode:
-        print("DEMO MODE ACTIVE: Open browser to see sample data")
+        logger.info("DEMO MODE ACTIVE: Open browser to see sample data")
     else:
-        print("LIVE MODE ACTIVE: Collecting and analyzing real-time data")
+        logger.info("LIVE MODE ACTIVE: Collecting and analyzing real-time data")
     
     socketio.run(app, debug=os.environ.get('DEBUG', 'True').lower() == 'true', 
                 host='0.0.0.0', port=port) 

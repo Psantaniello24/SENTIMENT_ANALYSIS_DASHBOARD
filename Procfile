@@ -1,1 +1,1 @@
-web: gunicorn --worker-class eventlet -w 1 app:app 
+web: pip install --only-binary=:all: tokenizers && pip install --no-deps transformers && pip install -r requirements.txt && gunicorn --worker-class eventlet -w 1 app:app 

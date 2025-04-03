@@ -1,9 +1,23 @@
 import re
 import nltk
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import numpy as np
 import os
+import numpy as np
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Try importing the transformers package
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+    logger.info("Transformers and PyTorch successfully imported")
+except ImportError as e:
+    logger.warning(f"Error importing transformers or torch: {e}")
+    logger.warning("Falling back to basic sentiment analysis")
+    TRANSFORMERS_AVAILABLE = False
 
 class SentimentAnalyzer:
     def __init__(self):
@@ -17,23 +31,40 @@ class SentimentAnalyzer:
         # Set cache directory explicitly to avoid permission issues
         os.environ['TRANSFORMERS_CACHE'] = os.path.join(os.getcwd(), 'models_cache')
         
-        # Load pre-trained model and tokenizer
-        self.model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-        print(f"Loading BERT model: {self.model_name}")
-        print("This may take a few minutes on first run...")
-        
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-            print("BERT model loaded successfully!")
-        except Exception as e:
-            print(f"Error loading BERT model: {e}")
-            print("Falling back to basic sentiment analysis...")
+        if TRANSFORMERS_AVAILABLE:
+            # Load pre-trained model and tokenizer
+            self.model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+            print(f"Loading BERT model: {self.model_name}")
+            print("This may take a few minutes on first run...")
+            
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+                print("BERT model loaded successfully!")
+                self.labels = ['negative', 'positive']
+            except Exception as e:
+                print(f"Error loading BERT model: {e}")
+                print("Falling back to basic sentiment analysis...")
+                self.tokenizer = None
+                self.model = None
+                TRANSFORMERS_AVAILABLE = False
+        else:
+            print("Transformers package not available, using basic sentiment analysis")
             self.tokenizer = None
             self.model = None
         
-        # Define sentiment labels
-        self.labels = ['negative', 'positive']
+        # Define positive and negative word lists for basic analysis
+        self.positive_words = [
+            'good', 'great', 'awesome', 'excellent', 'like', 'love', 'happy', 'best', 
+            'better', 'amazing', 'wonderful', 'fantastic', 'nice', 'perfect', 'enjoy',
+            'beautiful', 'brilliant', 'outstanding', 'superb', 'helpful', 'positive'
+        ]
+        
+        self.negative_words = [
+            'bad', 'worst', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'disappointing', 
+            'sucks', 'poor', 'horrible', 'useless', 'wrong', 'waste', 'annoying', 'tough',
+            'negative', 'slow', 'broken', 'difficult', 'angry', 'boring', 'fail'
+        ]
     
     def clean_text(self, text):
         """Clean text by removing URLs, mentions, hashtags, and special characters."""
@@ -53,7 +84,7 @@ class SentimentAnalyzer:
         return text
     
     def analyze(self, text):
-        """Analyze the sentiment of a text using the pre-trained model."""
+        """Analyze the sentiment of a text using the pre-trained model or basic analysis."""
         # Clean the text
         cleaned_text = self.clean_text(text)
         
@@ -61,8 +92,8 @@ class SentimentAnalyzer:
         if not cleaned_text:
             return 'neutral'
         
-        # If model failed to load, use a simple lexicon-based approach
-        if self.model is None or self.tokenizer is None:
+        # If transformers is not available or model failed to load, use basic analysis
+        if not TRANSFORMERS_AVAILABLE or self.model is None or self.tokenizer is None:
             return self._basic_sentiment_analysis(cleaned_text)
         
         try:
@@ -94,18 +125,24 @@ class SentimentAnalyzer:
     
     def _basic_sentiment_analysis(self, text):
         """A simple rule-based sentiment analysis as fallback"""
-        
-        # Lists of positive and negative words
-        positive_words = ['good', 'great', 'awesome', 'excellent', 'like', 'love', 'happy', 'best', 'better', 'amazing']
-        negative_words = ['bad', 'worst', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'disappointing', 'sucks', 'poor']
-        
         text = text.lower()
         
-        # Count occurrences
-        positive_count = sum(1 for word in positive_words if word in text)
-        negative_count = sum(1 for word in negative_words if word in text)
+        # Count occurrences of positive and negative words
+        positive_count = sum(1 for word in self.positive_words if word in text)
+        negative_count = sum(1 for word in self.negative_words if word in text)
         
-        # Determine sentiment
+        # Additional heuristics to improve basic sentiment analysis
+        # Check for negations that flip sentiment
+        negations = ['not', "don't", "doesn't", 'no', 'never', "isn't", "aren't", "wasn't", "weren't"]
+        for negation in negations:
+            if negation in text:
+                # Look for nearby positive words to flip
+                for word in self.positive_words:
+                    if f"{negation} {word}" in text or f"{negation} really {word}" in text:
+                        positive_count -= 1
+                        negative_count += 1
+        
+        # Determine sentiment based on counts
         if positive_count > negative_count:
             return 'positive'
         elif negative_count > positive_count:

@@ -11,4 +11,8 @@ python-dotenv==0.20.0
 werkzeug==2.0.1
 # Deployment requirements
 gunicorn==20.1.0
-eventlet==0.33.3 
+eventlet==0.33.3
+# Use pre-built tokenizers instead of building from source
+tokenizers==0.13.2
+# Add comment for deploy.sh
+# --only-binary=:all: tokenizers 
