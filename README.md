@@ -4,6 +4,10 @@ A real-time sentiment analysis dashboard that collects content from Reddit (and 
 
 > **Note**: By default, the application only collects data from Reddit due to Twitter API payment constraints. Twitter functionality is included in the code but requires a paid Twitter Developer Account.
 
+- ## Video example
+
+![Demo GIF](./sentiment_demo.gif)
+
 ## Features
 
 - **Data Collection**: Collects posts from Reddit (and optionally Twitter) in real-time.
