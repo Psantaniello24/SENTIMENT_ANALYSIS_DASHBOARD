@@ -1,9 +1,8 @@
 flask==2.0.1
 tweepy==4.10.0
 praw==7.6.0
-# Use a specific tokenizers version that's compatible with transformers 4.18.0
-tokenizers==0.12.1
-transformers==4.18.0
+# Use transformers without tokenizers dependency
+transformers==4.35.0
 torch>=2.2.0
 plotly==5.10.0
 pandas==1.4.2

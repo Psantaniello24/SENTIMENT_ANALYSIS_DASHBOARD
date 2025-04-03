@@ -1,1 +1,1 @@
-web: pip install --only-binary=:all: tokenizers==0.12.1 && pip install -r requirements.txt && gunicorn --worker-class eventlet -w 1 app:app 
+web: pip install -r requirements.txt && gunicorn --worker-class eventlet -w 1 app:app 
