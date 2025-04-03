@@ -4,8 +4,6 @@ A real-time sentiment analysis dashboard that collects content from Reddit (and 
 
 > **Note**: By default, the application only collects data from Reddit due to Twitter API payment constraints. Twitter functionality is included in the code but requires a paid Twitter Developer Account.
 
-![Demo GIF](./sentiment_demo.gif)
-
 ## Features
 
 - **Data Collection**: Collects posts from Reddit (and optionally Twitter) in real-time.
@@ -14,33 +12,6 @@ A real-time sentiment analysis dashboard that collects content from Reddit (and 
 - **Real-Time Dashboard**: Displays sentiment analysis results in a web application with charts and tables.
 - **Live Updates**: Uses WebSockets to provide real-time updates to the dashboard.
 - **Dynamic Search Terms**: Update search terms directly from the web interface without restarting.
-
-## Memory Optimization
-
-This application has built-in memory optimization features to run on platforms with memory constraints (like free tier hosting services):
-
-### Low Memory Mode
-
-Enable low memory mode by setting the environment variable:
-```
-LOW_MEMORY_MODE=true
-```
-
-When enabled, the application:
-- Uses a lightweight rule-based sentiment analyzer instead of BERT
-- Limits the number of items stored in memory
-- Processes fewer social media posts
-- Runs garbage collection more frequently
-- Limits max items configuration
-
-### Memory Issues?
-
-If you encounter memory-related crashes:
-
-1. Make sure `LOW_MEMORY_MODE=true` is set
-2. Comment out `transformers` and `torch` in requirements.txt
-3. Reduce `MAX_ITEMS` in your .env file to 30 or less
-4. Deploy with only 1 worker (`-w 1` in Procfile/render.yaml)
 
 ## Demo Mode
 
@@ -106,6 +77,37 @@ python app.py
 http://localhost:5000
 ```
 
+## Deployment
+
+### GitHub Deployment
+
+1. Create a new repository on GitHub
+2. Push your local repository to GitHub:
+```
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/yourusername/real-time-sentiment-analysis.git
+git push -u origin main
+```
+
+### Render Deployment
+
+1. Create an account on [Render](https://render.com/) if you don't have one
+
+2. Create a new Web Service:
+   - Connect your GitHub repository
+   - Select the Python runtime
+   - Set the build command: `pip install -r requirements.txt`
+   - Set the start command: `gunicorn --worker-class eventlet -w 1 app:app`
+   - Add your environment variables from your `.env` file in the Render dashboard
+
+3. Add dependencies to requirements.txt:
+```
+gunicorn==20.1.0
+eventlet==0.33.3
+```
 
 ## Project Structure
 

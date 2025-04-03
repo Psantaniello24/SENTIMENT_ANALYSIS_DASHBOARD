@@ -3,83 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentiment Analysis Dashboard</title>
+    <title>Real-Time Sentiment Analysis Dashboard</title>
     
-    <!-- Load only what we need -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Scripts -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <div class="container">
-            <h1><i class="fas fa-chart-line"></i> Sentiment Analysis Dashboard</h1>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Real-Time Sentiment Analysis Dashboard</h1>
+        
+        <!-- Search Terms Card -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Search Terms</h4>
+                        <span id="search-status" class="badge bg-info">Current</span>
+                    </div>
+                    <div class="card-body">
+                        <form id="search-form" class="row g-3">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" id="search-terms" 
+                                      placeholder="Enter comma-separated search terms (e.g., climate change, technology, politics)">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" class="form-control" id="max-items" placeholder="Max items" min="10" max="500" step="10">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">Update</button>
+                            </div>
+                        </form>
+                        <div class="mt-2">
+                            <small class="text-muted">Current terms: <span id="current-terms"></span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </header>
-    
-    <!-- Main Content -->
-    <main class="container">
-        <section class="dashboard">
-            <!-- Summary Section -->
-            <div class="dashboard-card" id="sentiment-overview">
-                <h2><i class="fas fa-poll"></i> Sentiment Overview</h2>
-                <div id="sentiment-data">
-                    <div class="loader-container">
-                        <div class="loader"></div>
+        
+        <div class="row">
+            <!-- Sentiment Distribution Chart -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>Sentiment Distribution</h4>
                     </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="sentiment-chart"></canvas>
+                    <div class="card-body">
+                        <div id="sentiment-chart"></div>
+                    </div>
                 </div>
             </div>
             
-            <!-- Configuration Section -->
-            <div class="dashboard-card" id="configuration">
-                <h2><i class="fas fa-cog"></i> Configuration</h2>
-                <form id="config-form">
-                    <div class="form-group">
-                        <label for="search-terms">Search Terms:</label>
-                        <input type="text" id="search-terms" name="search-terms" placeholder="Enter comma-separated terms">
+            <!-- Source Distribution Chart -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>Source Distribution</h4>
                     </div>
-                    <div class="form-group">
-                        <label for="max-items">Max Items:</label>
-                        <input type="number" id="max-items" name="max-items" min="10" max="100" step="10">
-                    </div>
-                    <button type="submit" class="btn">Update</button>
-                </form>
-            </div>
-            
-            <!-- Data Sources Section -->
-            <div class="dashboard-card" id="data-sources">
-                <h2><i class="fas fa-database"></i> Data Sources</h2>
-                <div class="chart-container">
-                    <canvas id="source-chart"></canvas>
-                </div>
-            </div>
-            
-            <!-- Recent Items Section -->
-            <div class="dashboard-card" id="recent-items-card">
-                <h2><i class="fas fa-list"></i> Recent Items</h2>
-                <div id="recent-items">
-                    <div class="loader-container">
-                        <div class="loader"></div>
+                    <div class="card-body">
+                        <div id="source-chart"></div>
                     </div>
                 </div>
             </div>
-        </section>
-    </main>
-    
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <p>&copy; 2023 Sentiment Analysis Dashboard</p>
         </div>
-    </footer>
+        
+        <!-- Recent Items Table -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>Recent Posts</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Source</th>
+                                        <th>Text</th>
+                                        <th>Sentiment</th>
+                                        <th>Timestamp</th>
+                                        <th>Link</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-items-table">
+                                    <!-- Items will be dynamically added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     
-    <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html> 
