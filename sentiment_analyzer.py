@@ -8,6 +8,23 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Set NLTK data path
+nltk_data_path = os.path.join(os.getcwd(), 'nltk_data')
+if not os.path.exists(nltk_data_path):
+    try:
+        os.makedirs(nltk_data_path)
+    except:
+        # Use default if we can't create the directory
+        nltk_data_path = None
+
+# Configure NLTK data path
+if nltk_data_path:
+    nltk.data.path.append(nltk_data_path)
+    logger.info(f"NLTK data path set to: {nltk_data_path}")
+
+# Define global variable for transformers availability
+TRANSFORMERS_AVAILABLE = False
+
 # Try importing the transformers package
 try:
     from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -17,16 +34,22 @@ try:
 except ImportError as e:
     logger.warning(f"Error importing transformers or torch: {e}")
     logger.warning("Falling back to basic sentiment analysis")
-    TRANSFORMERS_AVAILABLE = False
 
 class SentimentAnalyzer:
     def __init__(self):
         # Download necessary NLTK resources
         try:
             nltk.data.find('tokenizers/punkt')
+            logger.info("NLTK punkt tokenizer already downloaded")
         except LookupError:
-            print("Downloading NLTK punkt tokenizer...")
-            nltk.download('punkt')
+            logger.info("Downloading NLTK punkt tokenizer...")
+            try:
+                nltk.download('punkt', download_dir=nltk_data_path)
+                logger.info("NLTK punkt tokenizer downloaded successfully")
+            except Exception as e:
+                logger.error(f"Error downloading NLTK data: {e}")
+                logger.info("Trying to download to default location")
+                nltk.download('punkt')
         
         # Set cache directory explicitly to avoid permission issues
         os.environ['TRANSFORMERS_CACHE'] = os.path.join(os.getcwd(), 'models_cache')
@@ -34,22 +57,21 @@ class SentimentAnalyzer:
         if TRANSFORMERS_AVAILABLE:
             # Load pre-trained model and tokenizer
             self.model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-            print(f"Loading BERT model: {self.model_name}")
-            print("This may take a few minutes on first run...")
+            logger.info(f"Loading BERT model: {self.model_name}")
+            logger.info("This may take a few minutes on first run...")
             
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
                 self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-                print("BERT model loaded successfully!")
+                logger.info("BERT model loaded successfully!")
                 self.labels = ['negative', 'positive']
             except Exception as e:
-                print(f"Error loading BERT model: {e}")
-                print("Falling back to basic sentiment analysis...")
+                logger.error(f"Error loading BERT model: {e}")
+                logger.info("Falling back to basic sentiment analysis...")
                 self.tokenizer = None
                 self.model = None
-                TRANSFORMERS_AVAILABLE = False
         else:
-            print("Transformers package not available, using basic sentiment analysis")
+            logger.info("Transformers package not available, using basic sentiment analysis")
             self.tokenizer = None
             self.model = None
         
@@ -120,7 +142,7 @@ class SentimentAnalyzer:
             return sentiment
             
         except Exception as e:
-            print(f"Error in sentiment analysis: {e}")
+            logger.error(f"Error in sentiment analysis: {e}")
             return self._basic_sentiment_analysis(cleaned_text)
     
     def _basic_sentiment_analysis(self, text):

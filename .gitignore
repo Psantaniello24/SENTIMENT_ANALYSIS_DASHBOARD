@@ -39,3 +39,4 @@ models_cache/
 
 # Qodo
 .qodo/
+.qodo

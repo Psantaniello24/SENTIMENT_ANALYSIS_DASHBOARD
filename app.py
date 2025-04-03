@@ -20,17 +20,7 @@ logger = logging.getLogger(__name__)
 logger.info("Initializing Sentiment Analysis Dashboard...")
 logger.info("This may take a few minutes on first run while downloading models...")
 
-# Try importing components with error handling
-try:
-    from sentiment_analyzer import SentimentAnalyzer
-    from data_collector import TwitterCollector, RedditCollector
-except ImportError as e:
-    logger.error(f"Error importing required modules: {e}")
-    raise
-
-# Load environment variables
-load_dotenv()
-
+# Initialize the Flask app early so we can serve errors if imports fail
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'sentiment-analysis-secret')
 
@@ -39,21 +29,21 @@ socketio = SocketIO(app,
                    cors_allowed_origins=os.environ.get('CORS_ORIGINS', '*'),
                    async_mode=os.environ.get('SOCKETIO_ASYNC_MODE', 'eventlet'))
 
-# Initialize analyzers and collectors
-logger.info("Loading sentiment analysis model...")
-sentiment_analyzer = SentimentAnalyzer()
-logger.info("Initializing Twitter collector...")
-twitter_collector = TwitterCollector()
-logger.info("Initializing Reddit collector...")
-reddit_collector = RedditCollector()
-logger.info("Initialization complete!")
+# Global flag for initialization error
+initialization_error = None
 
-# Check if we are in demo mode (no API keys)
-demo_mode = twitter_collector.client is None and reddit_collector.client is None
-if demo_mode:
-    logger.info("RUNNING IN DEMO MODE: No valid API keys found. Will generate sample data.")
-    logger.info("To use real data, please add valid API keys to the .env file.")
+# Load environment variables
+load_dotenv()
 
+# Try importing components with error handling
+try:
+    from sentiment_analyzer import SentimentAnalyzer
+    from data_collector import TwitterCollector, RedditCollector
+except ImportError as e:
+    error_msg = f"Error importing required modules: {str(e)}"
+    logger.error(error_msg)
+    initialization_error = error_msg
+    
 # Global data storage
 sentiment_data = {
     'positive': 0,
@@ -78,8 +68,43 @@ config_lock = threading.Lock()
 # Flag to signal the analyzer thread to refresh its config
 refresh_config = threading.Event()
 
+# Initialize instances with error handling
+try:
+    if initialization_error is None:
+        # Initialize analyzers and collectors
+        logger.info("Loading sentiment analysis model...")
+        sentiment_analyzer = SentimentAnalyzer()
+        logger.info("Initializing Twitter collector...")
+        twitter_collector = TwitterCollector()
+        logger.info("Initializing Reddit collector...")
+        reddit_collector = RedditCollector()
+        logger.info("Initialization complete!")
+        
+        # Check if we are in demo mode (no API keys)
+        demo_mode = twitter_collector.client is None and reddit_collector.client is None
+        if demo_mode:
+            logger.info("RUNNING IN DEMO MODE: No valid API keys found. Will generate sample data.")
+            logger.info("To use real data, please add valid API keys to the .env file.")
+except Exception as e:
+    error_msg = f"Error during initialization: {str(e)}"
+    logger.error(error_msg, exc_info=True)
+    initialization_error = error_msg
+    demo_mode = True
+
 @app.route('/')
 def index():
+    if initialization_error:
+        # Return error page if initialization failed
+        return f"""
+        <html>
+        <head><title>Initialization Error</title></head>
+        <body>
+            <h1>Initialization Error</h1>
+            <p>The application failed to initialize properly. Please check the logs.</p>
+            <p>Error: {initialization_error}</p>
+        </body>
+        </html>
+        """
     return render_template('index.html')
 
 @socketio.on('connect')
@@ -87,6 +112,8 @@ def handle_connect():
     logger.info('Client connected')
     # Send initial data to new clients
     socketio.emit('update_data', sentiment_data)
+    if initialization_error:
+        socketio.emit('initialization_error', {'error': initialization_error})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -170,13 +197,23 @@ def generate_sample_data(count=10):
     ]
     
     sources = ['Twitter', 'Reddit']
+    sentiments = ['positive', 'negative', 'neutral']
+    weights = [0.4, 0.4, 0.2]  # Distribution weights for sentiments
     sample_data = []
     
     for _ in range(count):
         text = random.choice(sample_texts)
         source = random.choice(sources)
         timestamp = (datetime.now() - timedelta(minutes=random.randint(1, 60))).isoformat()
-        sentiment = sentiment_analyzer.analyze(text)
+        
+        # If sentiment_analyzer is available, use it, otherwise choose randomly
+        if 'sentiment_analyzer' in globals() and sentiment_analyzer is not None:
+            try:
+                sentiment = sentiment_analyzer.analyze(text)
+            except Exception:
+                sentiment = random.choices(sentiments, weights=weights)[0]
+        else:
+            sentiment = random.choices(sentiments, weights=weights)[0]
         
         sample_data.append({
             'text': text,
@@ -207,7 +244,7 @@ def analyze_content():
             
             all_items = []
             
-            if demo_mode:
+            if demo_mode or initialization_error is not None:
                 # In demo mode, generate sample data
                 logger.info("Generating sample data...")
                 all_items = generate_sample_data(10)  # Generate 10 sample items
@@ -262,7 +299,7 @@ def analyze_content():
             logger.info(f"Analyzed {len(all_items)} new items. Total: positive={sentiment_data['positive']}, negative={sentiment_data['negative']}, neutral={sentiment_data['neutral']}")
             
             # Wait before the next collection
-            sleep_time = 10 if demo_mode else 60  # Faster updates in demo mode
+            sleep_time = 10 if demo_mode or initialization_error is not None else 60  # Faster updates in demo mode
             logger.info(f"Waiting {sleep_time} seconds for next update...")
             
             # Wait with timeout to allow for interruption from config changes
@@ -273,16 +310,36 @@ def analyze_content():
             time.sleep(10)  # Wait a bit before retrying
 
 if __name__ == '__main__':
-    # Start the analyzer in a background thread
-    analyzer_thread = threading.Thread(target=analyze_content, daemon=True)
-    analyzer_thread.start()
+    # Start the analyzer in a background thread only if no initialization error
+    if initialization_error is None:
+        analyzer_thread = threading.Thread(target=analyze_content, daemon=True)
+        analyzer_thread.start()
+    else:
+        logger.warning("Skipping analyzer thread due to initialization error")
+        # Set demo mode for static data generation
+        demo_mode = True
+        
+        # Start a minimal thread just to provide sample data
+        def minimal_data_thread():
+            global sentiment_data
+            while True:
+                # Generate some sample data periodically
+                all_items = generate_sample_data(5)
+                sentiment_data['recent_items'] = (all_items + sentiment_data['recent_items'])[:100]
+                socketio.emit('update_data', sentiment_data)
+                time.sleep(10)
+                
+        thread = threading.Thread(target=minimal_data_thread, daemon=True)
+        thread.start()
     
     # Get port from environment variable for deployment compatibility
     port = int(os.environ.get('PORT', 5000))
     
     # Start the Flask app
     logger.info(f"Starting web server on port {port}")
-    if demo_mode:
+    if initialization_error:
+        logger.warning(f"Running in ERROR mode due to: {initialization_error}")
+    elif demo_mode:
         logger.info("DEMO MODE ACTIVE: Open browser to see sample data")
     else:
         logger.info("LIVE MODE ACTIVE: Collecting and analyzing real-time data")
