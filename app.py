@@ -10,7 +10,7 @@ import time
 
 # Add a startup message
 print("Initializing Sentiment Analysis Dashboard...")
-print("Using NLTK VADER for sentiment analysis...")
+print("This may take a few minutes on first run while downloading models...")
 
 from sentiment_analyzer import SentimentAnalyzer
 from data_collector import TwitterCollector, RedditCollector
@@ -27,7 +27,7 @@ socketio = SocketIO(app,
                    async_mode='threading')
 
 # Initialize analyzers and collectors
-print("Loading sentiment analyzer...")
+print("Loading sentiment analysis model...")
 sentiment_analyzer = SentimentAnalyzer()
 print("Initializing Twitter collector...")
 twitter_collector = TwitterCollector()

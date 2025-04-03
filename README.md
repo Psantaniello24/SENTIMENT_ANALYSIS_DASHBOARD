@@ -81,47 +81,6 @@ python app.py
 http://localhost:5000
 ```
 
-## Deployment
-
-### GitHub Deployment
-
-1. Create a new repository on GitHub
-2. Push your local repository to GitHub:
-```
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/yourusername/real-time-sentiment-analysis.git
-git push -u origin main
-```
-
-### Render Deployment
-
-1. Create an account on [Render](https://render.com/) if you don't have one
-
-2. Create a new Web Service:
-   - Connect your GitHub repository
-   - Select the Python runtime
-   - Set the build command: `pip install -r requirements.txt`
-   - Set the start command: `gunicorn --worker-class eventlet -w 1 app:app`
-   - Add your environment variables from your `.env` file in the Render dashboard
-
-3. Add dependencies to requirements.txt:
-```
-gunicorn==20.1.0
-eventlet==0.33.3
-```
-
-## Project Structure
-
-- `app.py`: Main Flask application.
-- `sentiment_analyzer.py`: BERT-based sentiment analysis functionality.
-- `data_collector.py`: Classes for collecting data from Reddit and Twitter.
-- `templates/`: HTML templates for the web interface.
-- `static/`: Static files (CSS, JavaScript).
-- `requirements.txt`: Required Python packages.
-
 ## Customization
 
 - Change search terms directly from the web interface
