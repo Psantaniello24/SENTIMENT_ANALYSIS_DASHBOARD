@@ -1,36 +1,22 @@
 import re
 import nltk
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import numpy as np
 import os
+import numpy as np
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 class SentimentAnalyzer:
     def __init__(self):
         # Download necessary NLTK resources
         try:
-            nltk.data.find('tokenizers/punkt')
+            nltk.data.find('vader_lexicon')
         except LookupError:
-            print("Downloading NLTK punkt tokenizer...")
-            nltk.download('punkt')
+            print("Downloading NLTK vader lexicon...")
+            nltk.download('vader_lexicon')
         
-        # Set cache directory explicitly to avoid permission issues
-        os.environ['TRANSFORMERS_CACHE'] = os.path.join(os.getcwd(), 'models_cache')
-        
-        # Load pre-trained model and tokenizer
-        self.model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-        print(f"Loading BERT model: {self.model_name}")
-        print("This may take a few minutes on first run...")
-        
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-            print("BERT model loaded successfully!")
-        except Exception as e:
-            print(f"Error loading BERT model: {e}")
-            print("Falling back to basic sentiment analysis...")
-            self.tokenizer = None
-            self.model = None
+        # Initialize VADER sentiment analyzer
+        print("Initializing VADER sentiment analyzer...")
+        self.analyzer = SentimentIntensityAnalyzer()
+        print("Sentiment analyzer initialized successfully!")
         
         # Define sentiment labels
         self.labels = ['negative', 'positive']
@@ -53,7 +39,7 @@ class SentimentAnalyzer:
         return text
     
     def analyze(self, text):
-        """Analyze the sentiment of a text using the pre-trained model."""
+        """Analyze the sentiment of a text using VADER."""
         # Clean the text
         cleaned_text = self.clean_text(text)
         
@@ -61,32 +47,17 @@ class SentimentAnalyzer:
         if not cleaned_text:
             return 'neutral'
         
-        # If model failed to load, use a simple lexicon-based approach
-        if self.model is None or self.tokenizer is None:
-            return self._basic_sentiment_analysis(cleaned_text)
-        
         try:
-            # Tokenize the text and prepare for the model
-            inputs = self.tokenizer(cleaned_text, return_tensors="pt", truncation=True, max_length=512)
-            
-            # Get prediction
-            with torch.no_grad():
-                outputs = self.model(**inputs)
-                predictions = outputs.logits
-                
             # Get sentiment scores
-            scores = torch.nn.functional.softmax(predictions, dim=1).detach().numpy()[0]
+            scores = self.analyzer.polarity_scores(cleaned_text)
             
-            # Determine sentiment
-            max_score_index = np.argmax(scores)
-            sentiment = self.labels[max_score_index]
-            
-            # Add a neutral category for borderline cases
-            confidence = scores[max_score_index]
-            if confidence < 0.65:  # Threshold for neutral sentiment
+            # Determine sentiment based on compound score
+            if scores['compound'] >= 0.05:
+                return 'positive'
+            elif scores['compound'] <= -0.05:
+                return 'negative'
+            else:
                 return 'neutral'
-                
-            return sentiment
             
         except Exception as e:
             print(f"Error in sentiment analysis: {e}")
