@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: sentiment-analysis-dashboard
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: false
+    disk:
+      name: models-cache
+      mountPath: /app/models_cache
+      sizeGB: 5 

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sentiment-analysis-dashboard
+    env: python
+    buildCommand: pip install poetry && poetry install --no-dev
+    startCommand: poetry run gunicorn -c gunicorn_config.py app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SOCKETIO_ASYNC_MODE
+        value: threading
+    healthCheckPath: / 
