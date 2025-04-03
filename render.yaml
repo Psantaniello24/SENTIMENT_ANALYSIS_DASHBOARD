@@ -2,7 +2,7 @@ services:
   - type: web
     name: sentiment-analysis-dashboard
     env: python
-    buildCommand: chmod +x deploy.sh && ./deploy.sh
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: gunicorn --worker-class eventlet -w 1 app:app
     envVars:
       - key: PYTHON_VERSION

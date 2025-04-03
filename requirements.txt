@@ -1,6 +1,8 @@
 flask==2.0.1
 tweepy==4.10.0
 praw==7.6.0
+# Use a specific tokenizers version that's compatible with transformers 4.18.0
+tokenizers==0.12.1
 transformers==4.18.0
 torch>=2.2.0
 plotly==5.10.0
@@ -11,8 +13,4 @@ python-dotenv==0.20.0
 werkzeug==2.0.1
 # Deployment requirements
 gunicorn==20.1.0
-eventlet==0.33.3
-# Use pre-built tokenizers instead of building from source
-tokenizers==0.13.2
-# Add comment for deploy.sh
-# --only-binary=:all: tokenizers 
+eventlet==0.33.3 
