@@ -32,7 +32,6 @@ The application includes a demonstration mode that generates sample data if API 
 1. Clone this repository:
 ```
 git clone https://github.com/Psantaniello24/SENTIMENT_ANALYSIS_DASHBOARD.git
-cd real-time-sentiment-analysis
 ```
 
 2. Create a virtual environment and activate it:
